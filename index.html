@@ -2,39 +2,37 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Transformación a Lirio 3D</title>
   <style>
     body {
       margin: 0;
       overflow: hidden;
+      background-color: #0f0f1a;
       background: radial-gradient(circle at center, #1a1a2e 0%, #0f0f1a 100%);
       font-family: sans-serif;
     }
     #ui {
       position: absolute;
-      bottom: 30px;
+      bottom: 40px;
       left: 50%;
       transform: translateX(-50%);
       text-align: center;
-      color: white;
       z-index: 10;
     }
     button {
       background: #ff6b8b;
       color: white;
       border: none;
-      padding: 12px 24px;
+      padding: 14px 28px;
       font-size: 16px;
+      font-weight: bold;
       border-radius: 25px;
       cursor: pointer;
       box-shadow: 0 4px 15px rgba(255, 107, 139, 0.4);
-      transition: transform 0.2s, background 0.2s;
-    }
-    button:hover {
-      background: #ff4772;
-      transform: scale(1.05);
     }
   </style>
+  <script src="https://unpkg.com"></script>
 </head>
 <body>
 
@@ -42,35 +40,18 @@
     <button id="toggleBtn">Transformar en Lirio</button>
   </div>
 
-  <!-- Importar Three.js y controles de cámara desde CDN -->
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://unpkg.com",
-        "three/addons/": "https://unpkg.com"
-      }
-    }
-  </script>
-
-  <script type="module">
-    import * as THREE from 'three';
-    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-
-    // 1. Configuración básica de escena, cámara y renderizador
+  <script>
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(0, 6, 10);
+    camera.position.set(0, 5, 11);
+    camera.lookAt(0, 0.5, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     document.body.appendChild(renderer.domElement);
 
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-
-    // 2. Iluminación
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
     scene.add(ambientLight);
 
     const dirLight = new THREE.DirectionalLight(0xffe6f0, 1.8);
@@ -81,19 +62,16 @@
     backLight.position.set(-5, -5, -5);
     scene.add(backLight);
 
-    // 3. Grupo principal de la flor
     const flowerGroup = new THREE.Group();
     scene.add(flowerGroup);
 
-    // Tallo
     const stemGeo = new THREE.CylinderGeometry(0.08, 0.12, 6, 12);
     const stemMat = new THREE.MeshStandardMaterial({ color: 0x2d6a4f, roughness: 0.6 });
     const stem = new THREE.Mesh(stemGeo, stemMat);
     stem.position.y = -3;
     flowerGroup.add(stem);
 
-    // Centro y estambres (pistilos del lirio)
-    const stamens = [];
+    const stamens = new Array();
     const stamenGroup = new THREE.Group();
     flowerGroup.add(stamenGroup);
 
@@ -108,7 +86,8 @@
       filGeo.translate(0, 0.9, 0);
       const filament = new THREE.Mesh(filGeo, filamentMat);
       
-      const antherGeo = new THREE.CapsuleGeometry(0.05, 0.18, 4, 8);
+      const antherGeo = new THREE.SphereGeometry(0.07, 8, 8);
+      antherGeo.scale(0.8, 2.2, 0.8);
       const anther = new THREE.Mesh(antherGeo, antherMat);
       anther.position.y = 1.8;
       anther.rotation.z = Math.PI / 3;
@@ -120,8 +99,7 @@
       stamens.push(sGroup);
     }
 
-    // 4. Creación de los 6 pétalos con geometría deformable
-    const petals = [];
+    const petals = new Array();
     const numPetals = 6;
     const segX = 16;
     const segY = 24;
@@ -135,7 +113,6 @@
 
     for (let i = 0; i < numPetals; i++) {
       const geo = new THREE.PlaneGeometry(1.6, 3.2, segX, segY);
-      // Mover el pivote a la base del pétalo
       geo.translate(0, 1.6, 0);
 
       const pos = geo.attributes.position;
@@ -144,35 +121,27 @@
 
       for (let j = 0; j < pos.count; j++) {
         const x = pos.getX(j);
-        const y = pos.getY(j); // De 0 a 3.2
+        const y = pos.getY(j);
         
-        const u = x / 0.8;       // Normalizado de -1 a 1 (ancho)
-        const v = y / 3.2;       // Normalizado de 0 a 1 (largo)
+        const u = x / 0.8;
+        const v = y / 3.2;
 
-        // --- FORMA 1: Flor inicial redondeada y cerrada ---
         const roundWidth = Math.sin(v * Math.PI) * 1.1;
         const bx = u * roundWidth;
         const by = v * 2.4;
         const bz = Math.sin(v * Math.PI) * 0.45 - (u * u) * 0.15;
 
-        basePositions[j * 3] = bx;
-        basePositions[j * 3 + 1] = by;
-        basePositions[j * 3 + 2] = bz;
+        basePositions.set(new Array(bx, by, bz), j * 3);
 
-        // --- FORMA 2: Lirio (pétalo alargado, puntiagudo y curvado hacia atrás) ---
         const lilyWidth = Math.sin(Math.pow(v, 0.75) * Math.PI) * 0.85;
-        // Ondulación sutil en los bordes típica del lirio
         const ruffle = Math.sin(v * 14) * 0.04 * Math.abs(u);
         const lx = u * lilyWidth;
         const ly = v * 3.5;
-        // Curvatura en arco hacia afuera + pliegue central (nervadura)
         const arch = -Math.pow(v, 2.2) * 1.45;
         const fold = Math.abs(u) * 0.18 * Math.sin(v * Math.PI);
         const lz = arch + fold + ruffle;
 
-        lilyPositions[j * 3] = lx;
-        lilyPositions[j * 3 + 1] = ly;
-        lilyPositions[j * 3 + 2] = lz;
+        lilyPositions.set(new Array(lx, ly, lz), j * 3);
       }
 
       geo.userData = { basePositions, lilyPositions };
@@ -180,7 +149,6 @@
       const mesh = new THREE.Mesh(geo, petalMat);
       const pivot = new THREE.Group();
       
-      // Alternar ligeramente dos capas (3 internos, 3 externos como un lirio real)
       const isOuter = i % 2 === 0;
       pivot.rotation.y = (i / numPetals) * Math.PI * 2;
       pivot.userData = { isOuter, index: i };
@@ -190,9 +158,8 @@
       petals.push({ pivot, mesh, geo });
     }
 
-    // 5. Lógica de animación e interacción
     let isLily = false;
-    let morphProgress = 0; // 0 = Flor inicial, 1 = Lirio
+    let morphProgress = 0;
 
     const btn = document.getElementById('toggleBtn');
     btn.addEventListener('click', () => {
@@ -200,56 +167,59 @@
       btn.textContent = isLily ? 'Volver a Flor Inicial' : 'Transformar en Lirio';
     });
 
-    const colorFlower = new THREE.Color(0xff5c8a); // Rosa intenso
-    const colorLily = new THREE.Color(0xfff0f5);   // Blanco rosado perlado
+    let isDragging = false;
+    let prevX = 0;
+    window.addEventListener('pointerdown', (e) => { isDragging = true; prevX = e.clientX; });
+    window.addEventListener('pointerup', () => { isDragging = false; });
+    window.addEventListener('pointermove', (e) => {
+      if (isDragging) {
+        flowerGroup.rotation.y += (e.clientX - prevX) * 0.01;
+        prevX = e.clientX;
+      }
+    });
 
+    const colorFlower = new THREE.Color(0xff5c8a);
+    const colorLily = new THREE.Color(0xfff0f5);
     const clock = new THREE.Clock();
 
     function animate() {
       requestAnimationFrame(animate);
       const elapsed = clock.getElapsedTime();
 
-      // Suavizar la transición (interpolación)
       const target = isLily ? 1 : 0;
       morphProgress += (target - morphProgress) * 0.04;
 
-      // Cambiar color gradualmente
       petalMat.color.lerpColors(colorFlower, colorLily, morphProgress);
 
-      // Balanceo natural con el viento
       flowerGroup.rotation.z = Math.sin(elapsed * 1.2) * 0.06;
       flowerGroup.rotation.x = Math.cos(elapsed * 0.9) * 0.05;
-      flowerGroup.rotation.y += 0.004;
+      if (!isDragging) flowerGroup.rotation.y += 0.005;
 
-      // Actualizar cada pétalo
       petals.forEach(({ pivot, mesh, geo }) => {
         const pos = geo.attributes.position;
         const { basePositions, lilyPositions } = geo.userData;
 
         for (let i = 0; i < pos.array.length; i++) {
-          pos.array[i] = basePositions[i] + (lilyPositions[i] - basePositions[i]) * morphProgress;
+          const val = basePositions.at(i) + (lilyPositions.at(i) - basePositions.at(i)) * morphProgress;
+          pos.array.fill(val, i, i + 1);
         }
         pos.needsUpdate = true;
         geo.computeVertexNormals();
 
-        // Apertura del pétalo y movimiento orgánico
         const breath = Math.sin(elapsed * 2 + pivot.userData.index) * 0.03;
         const baseAngle = 0.45;
         const lilyAngle = pivot.userData.isOuter ? 1.05 : 0.88;
         mesh.rotation.x = baseAngle + (lilyAngle - baseAngle) * morphProgress + breath;
       });
 
-      // Animar estambres (crecen y se abren en modo lirio)
       stamenGroup.scale.setScalar(0.3 + morphProgress * 0.85);
       stamens.forEach((s, idx) => {
         s.rotation.x = 0.15 + morphProgress * 0.25 + Math.sin(elapsed * 2.5 + idx) * 0.03;
       });
 
-      controls.update();
       renderer.render(scene, camera);
     }
 
-    // Ajustar al redimensionar ventana
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
